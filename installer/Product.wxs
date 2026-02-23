@@ -1,0 +1,318 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!--
+  WiX 3.14 Product definition for JavaHttpService MSI installer.
+
+  Service lifecycle is managed entirely by WinSW via CustomActions.
+
+  Deferred CustomAction architecture:
+    MSI deferred actions run in an isolated elevated process that has
+    NO access to the session property bag. The only way to pass data
+    into a deferred action is through a paired "SetProperty" immediate
+    CustomAction that sets [CustomActionData] for it. WiX makes this
+    easy: a CustomAction whose Id matches the deferred action's Id with
+    a Value attribute sets CustomActionData automatically.
+
+    Each WinSW verb therefore has TWO CustomAction entries:
+      1. An immediate SetProperty action (Id = "<verb>") that writes
+         the full command line into CustomActionData for the deferred step.
+      2. A deferred Exec action (Id = "<verb>.Exec") that reads
+         [CustomActionData] and runs it.
+-->
+
+<?define ProductName    = "Java HTTP Service" ?>
+<?define ProductVersion = "1.0.0.0" ?>
+<?define Manufacturer   = "JavaHttpService" ?>
+<?define UpgradeCode    = "E8F3A1B2-4C5D-6E7F-8A9B-0C1D2E3F4A5B" ?>
+
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"
+     xmlns:util="http://schemas.microsoft.com/wix/UtilExtension">
+
+  <Product Id="*"
+           Name="$(var.ProductName)"
+           Version="$(var.ProductVersion)"
+           Manufacturer="$(var.Manufacturer)"
+           Language="1033"
+           UpgradeCode="$(var.UpgradeCode)">
+
+    <Package InstallerVersion="200"
+             Compressed="yes"
+             InstallScope="perMachine"
+             Description="Installs Java HTTP Service as a Windows Service"
+             Comments="Java HTTP Service Installer" />
+
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- ──────────────────────────────────────────────────────── -->
+    <!-- Upgrade / Existing Install Detection                     -->
+    <!-- ──────────────────────────────────────────────────────── -->
+
+    <Upgrade Id="$(var.UpgradeCode)">
+      <UpgradeVersion Minimum="0.0.0.0"
+                      Maximum="$(var.ProductVersion)"
+                      IncludeMinimum="yes"
+                      IncludeMaximum="no"
+                      Property="PREVIOUSVERSIONFOUND" />
+      <UpgradeVersion Minimum="$(var.ProductVersion)"
+                      IncludeMinimum="no"
+                      OnlyDetect="yes"
+                      Property="NEWERVERSIONFOUND" />
+    </Upgrade>
+
+    <Condition Message="A newer version of [ProductName] is already installed. Please uninstall it first.">
+      NOT NEWERVERSIONFOUND
+    </Condition>
+
+    <!-- ──────────────────────────────────────────────────────── -->
+    <!-- Properties                                               -->
+    <!-- ──────────────────────────────────────────────────────── -->
+
+    <Property Id="START_SERVICE" Value="1" Secure="yes" />
+
+    <!-- ──────────────────────────────────────────────────────── -->
+    <!-- CustomActions: Immediate SetProperty pairs               -->
+    <!--                                                          -->
+    <!-- Each immediate action sets [CustomActionData] for its    -->
+    <!-- paired deferred .Exec action. The Value is the full      -->
+    <!-- command line: "[INSTALLFOLDER]JavaHttpService.exe verb"  -->
+    <!-- [INSTALLFOLDER] is resolved at runtime (immediate        -->
+    <!-- actions DO have access to the property bag).             -->
+    <!-- ──────────────────────────────────────────────────────── -->
+
+    <!-- Passes the stop command line to WinSW_Stop.Exec -->
+    <CustomAction Id="WinSW_Stop"
+                  Property="WinSW_Stop.Exec"
+                  Value="&quot;[INSTALLFOLDER]JavaHttpService.exe&quot; stop"
+                  Execute="immediate" />
+
+    <!-- Passes the uninstall command line to WinSW_Uninstall.Exec -->
+    <CustomAction Id="WinSW_Uninstall"
+                  Property="WinSW_Uninstall.Exec"
+                  Value="&quot;[INSTALLFOLDER]JavaHttpService.exe&quot; uninstall"
+                  Execute="immediate" />
+
+    <!-- Passes the install command line to WinSW_Install.Exec -->
+    <CustomAction Id="WinSW_Install"
+                  Property="WinSW_Install.Exec"
+                  Value="&quot;[INSTALLFOLDER]JavaHttpService.exe&quot; install"
+                  Execute="immediate" />
+
+    <!-- Passes the start command line to WinSW_Start.Exec -->
+    <CustomAction Id="WinSW_Start"
+                  Property="WinSW_Start.Exec"
+                  Value="&quot;[INSTALLFOLDER]JavaHttpService.exe&quot; start"
+                  Execute="immediate" />
+
+    <!-- ──────────────────────────────────────────────────────── -->
+    <!-- CustomActions: Deferred Exec actions                     -->
+    <!--                                                          -->
+    <!-- These read [CustomActionData] (set by the paired         -->
+    <!-- immediate action above) and execute it elevated.         -->
+    <!-- Return="ignore" on stop/uninstall: a missing or          -->
+    <!-- already-stopped service must not abort the operation.    -->
+    <!-- ──────────────────────────────────────────────────────── -->
+
+    <CustomAction Id="WinSW_Stop.Exec"
+                  BinaryKey="WixCA"
+                  DllEntry="CAQuietExec"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="ignore" />
+
+    <CustomAction Id="WinSW_Uninstall.Exec"
+                  BinaryKey="WixCA"
+                  DllEntry="CAQuietExec"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="ignore" />
+
+    <CustomAction Id="WinSW_Install.Exec"
+                  BinaryKey="WixCA"
+                  DllEntry="CAQuietExec"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="check" />
+
+    <CustomAction Id="WinSW_Start.Exec"
+                  BinaryKey="WixCA"
+                  DllEntry="CAQuietExec"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="check" />
+
+    <!-- ──────────────────────────────────────────────────────── -->
+    <!-- Execute Sequence                                         -->
+    <!--                                                          -->
+    <!-- Each verb needs two entries in the sequence:             -->
+    <!--   1. The immediate SetProperty action (no condition      -->
+    <!--      needed — runs fast and is harmless if the .Exec     -->
+    <!--      is skipped by its own condition).                   -->
+    <!--   2. The deferred .Exec action with its condition.       -->
+    <!-- ──────────────────────────────────────────────────────── -->
+    <InstallExecuteSequence>
+
+      <!-- UNINSTALL / UPGRADE: set + run stop before uninstall -->
+      <Custom Action="WinSW_Stop"      Before="WinSW_Stop.Exec">1</Custom>
+      <Custom Action="WinSW_Stop.Exec" Before="WinSW_Uninstall">
+        Installed AND (REMOVE="ALL" OR UPGRADINGPRODUCTCODE)
+      </Custom>
+
+      <!-- UNINSTALL / UPGRADE: set + run uninstall before RemoveFiles -->
+      <Custom Action="WinSW_Uninstall"      Before="WinSW_Uninstall.Exec">1</Custom>
+      <Custom Action="WinSW_Uninstall.Exec" Before="RemoveFiles">
+        Installed AND (REMOVE="ALL" OR UPGRADINGPRODUCTCODE)
+      </Custom>
+
+      <!-- INSTALL / UPGRADE: set + run install after InstallFiles -->
+      <Custom Action="WinSW_Install"      After="InstallFiles">1</Custom>
+      <Custom Action="WinSW_Install.Exec" After="WinSW_Install">
+        NOT Installed OR UPGRADINGPRODUCTCODE
+      </Custom>
+
+      <!-- INSTALL / UPGRADE: set + run start after install (checkbox) -->
+      <Custom Action="WinSW_Start"      After="WinSW_Install.Exec">1</Custom>
+      <Custom Action="WinSW_Start.Exec" After="WinSW_Start">
+        START_SERVICE = 1 AND (NOT Installed OR UPGRADINGPRODUCTCODE)
+      </Custom>
+
+      <RemoveExistingProducts After="InstallInitialize" />
+
+    </InstallExecuteSequence>
+
+    <!-- ──────────────────────────────────────────────────────── -->
+    <!-- Directory Structure                                      -->
+    <!-- ──────────────────────────────────────────────────────── -->
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFilesFolder">
+        <Directory Id="INSTALLFOLDER" Name="JavaHttpService" />
+      </Directory>
+    </Directory>
+
+    <!-- ──────────────────────────────────────────────────────── -->
+    <!-- Component Group: Application Files                       -->
+    <!-- ──────────────────────────────────────────────────────── -->
+    <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
+
+      <Component Id="WinSWExe" Guid="A1B2C3D4-E5F6-7890-ABCD-EF1234567890">
+        <File Id="JavaHttpServiceExe"
+              Source="staging\JavaHttpService.exe"
+              KeyPath="yes" />
+      </Component>
+
+      <Component Id="WinSWConfig" Guid="B2C3D4E5-F6A7-8901-BCDE-F12345678901">
+        <File Id="JavaHttpServiceXml"
+              Source="staging\JavaHttpService.xml"
+              KeyPath="yes" />
+      </Component>
+
+      <Component Id="AppJar" Guid="C3D4E5F6-A7B8-9012-CDEF-123456789012">
+        <File Id="JavaHttpServiceJar"
+              Source="staging\JavaHttpService.jar"
+              KeyPath="yes" />
+      </Component>
+
+    </ComponentGroup>
+
+    <!-- ──────────────────────────────────────────────────────── -->
+    <!-- Feature                                                  -->
+    <!-- ──────────────────────────────────────────────────────── -->
+    <Feature Id="Complete" Title="Java HTTP Service" Level="1">
+      <ComponentGroupRef Id="ProductComponents" />
+    </Feature>
+
+    <!-- ──────────────────────────────────────────────────────── -->
+    <!-- Custom Welcome Dialog                                    -->
+    <!-- ──────────────────────────────────────────────────────── -->
+    <UI>
+      <Dialog Id="CustomWelcomeDlg" Width="370" Height="300"
+              Title="Welcome to [ProductName] Setup">
+
+        <Control Id="Title" Type="Text"
+                 X="15" Y="15" Width="340" Height="20">
+          <Text>{\WixUI_Font_Title}Welcome to [ProductName] Setup</Text>
+        </Control>
+
+        <Control Id="Description" Type="Text"
+                 X="15" Y="45" Width="340" Height="50">
+          <Text>This wizard will install [ProductName] as a Windows service.
+Click Next to continue or Cancel to exit.</Text>
+        </Control>
+
+        <Control Id="StartServiceCheckBox" Type="CheckBox"
+                 X="15" Y="130" Width="340" Height="18"
+                 Property="START_SERVICE" CheckBoxValue="1">
+          <Text>&amp;Start the Java HTTP Service immediately after installation</Text>
+        </Control>
+
+        <Control Id="HintText" Type="Text"
+                 X="30" Y="154" Width="320" Height="50">
+          <Text>If unchecked, the service will be installed but not started.
+You can start it later from services.msc or by running:
+    net start JavaHttpService</Text>
+        </Control>
+
+        <Control Id="BottomLine" Type="Line"
+                 X="0" Y="256" Width="370" Height="0" />
+
+        <Control Id="Cancel" Type="PushButton"
+                 X="196" Y="268" Width="80" Height="17"
+                 Cancel="yes" Text="Cancel">
+          <Publish Event="SpawnDialog" Value="CancelDlg">1</Publish>
+        </Control>
+
+        <Control Id="Next" Type="PushButton"
+                 X="284" Y="268" Width="80" Height="17"
+                 Default="yes" Text="Next &gt;">
+          <Publish Event="NewDialog" Value="PrepareDlg">1</Publish>
+        </Control>
+
+      </Dialog>
+    </UI>
+
+    <!-- ──────────────────────────────────────────────────────── -->
+    <!-- Main UI Definition                                       -->
+    <!-- ──────────────────────────────────────────────────────── -->
+    <UI Id="MyWixUI_Minimal">
+      <TextStyle Id="WixUI_Font_Normal" FaceName="Tahoma" Size="8" />
+      <TextStyle Id="WixUI_Font_Bigger" FaceName="Tahoma" Size="12" />
+      <TextStyle Id="WixUI_Font_Title"  FaceName="Tahoma" Size="9" Bold="yes" />
+
+      <Property Id="DefaultUIFont" Value="WixUI_Font_Normal" />
+      <Property Id="WixUI_Mode"    Value="Minimal" />
+
+      <DialogRef Id="ErrorDlg" />
+      <DialogRef Id="FatalError" />
+      <DialogRef Id="FilesInUse" />
+      <DialogRef Id="MsiRMFilesInUse" />
+      <DialogRef Id="PrepareDlg" />
+      <DialogRef Id="ProgressDlg" />
+      <DialogRef Id="ResumeDlg" />
+      <DialogRef Id="UserExit" />
+      <DialogRef Id="ExitDialog" />
+      <DialogRef Id="CustomWelcomeDlg" />
+
+      <InstallUISequence>
+        <Show Dialog="CustomWelcomeDlg" Before="ProgressDlg">NOT Installed</Show>
+      </InstallUISequence>
+
+      <Publish Dialog="ExitDialog" Control="Finish"
+               Event="EndDialog" Value="Return" Order="999">1</Publish>
+
+      <Publish Dialog="MaintenanceWelcomeDlg" Control="Next"
+               Event="NewDialog" Value="MaintenanceTypeDlg">1</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton"
+               Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton"
+               Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="Back"
+               Event="NewDialog" Value="MaintenanceWelcomeDlg">1</Publish>
+      <Publish Dialog="VerifyReadyDlg" Control="Back"
+               Event="NewDialog" Value="MaintenanceTypeDlg">1</Publish>
+
+      <Property Id="ARPNOMODIFY" Value="1" />
+    </UI>
+
+    <UIRef Id="WixUI_Common" />
+
+  </Product>
+</Wix>
