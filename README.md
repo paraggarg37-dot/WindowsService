@@ -45,11 +45,31 @@ Here is a breakdown of the key files and directories in this project and their p
   A PowerShell script that orchestrates the entire build process.
   1. Builds the fat JAR using Gradle.
   2. Downloads the WinSW executable if not already present.
-  3. Stages the JAR, WinSW `.exe`, and `JavaHttpService.xml` into `installer/staging/`.
+  3. Stages the JAR, WinSW `.exe`, and `JavaHttpService.xml` into the **`installer/staging/`** directory. This directory holds the exact files that the MSI installer will package together and install on the target machine.
   4. Uses the WiX toolset (`candle.exe` and `light.exe`) to compile `Product.wxs` into the final `JavaHttpService.msi` installer in `installer/output/`.
 
 - **`uninstall-service.ps1`**
   A PowerShell script to cleanly uninstall the service and the MSI. It stops the `JavaHttpService` if running, silently runs `msiexec /x` to uninstall the application, and verifies that the service registration and program files directory have been removed successfully. Requires Administrator privileges.
+
+## Developer Setup Context
+
+When cloning this repository to a new computer, you must verify and update a few hardcoded paths mapping to the Java JDK location on your specific machine.
+
+1. **Update `winsw/JavaHttpService.xml`:**
+   This file tells the WinSW wrapper how to start your Java application. Currently, the `<executable>` path is hardcoded to a specific user directory:
+   ```xml
+   <executable>C:\Users\Chirag\.jdks\ms-21.0.10\bin\java.exe</executable>
+   ```
+   *Action required:* Update this path to point to the `java.exe` within the JDK installation path on your machine before running the installer build.
+
+2. **Update `build-installer.ps1`:**
+   The PowerShell script uses a hardcoded `$JavaHome` path if the `JAVA_HOME` environment variable isn't set.
+   ```powershell
+   param(
+       [string]$JavaHome = "C:\Users\Chirag\.jdks\ms-21.0.10"
+   )
+   ```
+   *Action required:* Change this to your JDK installation directory, or simply ensure your `JAVA_HOME` system environment variable is correctly configured.
 
 ## Prerequisites for Building
 
